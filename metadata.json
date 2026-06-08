@@ -1,0 +1,6 @@
+{
+  "name": "Crianças à Boleia",
+  "description": "Ajuda grupos de pais a gerir as atividades dos filhos e a coordenar pedidos de boleia de forma simples e intuitiva.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

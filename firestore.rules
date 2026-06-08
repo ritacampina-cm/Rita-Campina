@@ -1,0 +1,156 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -- Global Reusable Helpers --
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // -- Entity Validation Helpers --
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'nome', 'email', 'telefone'])
+        && data.keys().size() <= 6
+        && data.id is string && data.id.size() <= 128
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 100
+        && data.email is string && data.email.size() <= 100
+        && data.telefone is string && data.telefone.size() >= 9 && data.telefone.size() <= 20
+        && (!data.keys().contains('foto') || (data.foto is string && data.foto.size() <= 1000));
+    }
+
+    function isValidChild(data) {
+      return data.keys().hasAll(['id', 'userId', 'nome', 'dataNascimento'])
+        && data.keys().size() <= 5
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 100
+        && data.dataNascimento is string && data.dataNascimento.size() == 10
+        && (!data.keys().contains('foto') || (data.foto is string && data.foto.size() <= 1000));
+    }
+
+    function isValidActivity(data) {
+      return data.keys().hasAll(['id', 'childId', 'nome', 'local', 'diaSemana', 'hora'])
+        && data.keys().size() <= 7
+        && data.id is string && data.id.size() <= 128
+        && data.childId is string && data.childId.size() <= 128
+        && data.nome is string && data.nome.size() >= 2 && data.nome.size() <= 150
+        && data.local is string && data.local.size() >= 2 && data.local.size() <= 150
+        && data.diaSemana is string && data.diaSemana in ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"]
+        && data.hora is string && data.hora.size() == 5
+        && (!data.keys().contains('observacoes') || (data.observacoes is string && data.observacoes.size() <= 1000));
+    }
+
+    function isValidRideRequest(data) {
+      return data.keys().hasAll(['id', 'userId', 'childId', 'activityId', 'data', 'hora', 'estado', 'createdAt'])
+        && data.keys().size() <= 10
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.childId is string && data.childId.size() <= 128
+        && data.activityId is string && data.activityId.size() <= 128
+        && data.data is string && data.data.size() == 10
+        && data.hora is string && data.hora.size() == 5
+        && data.estado is string && data.estado in ["Pendente", "Aceite", "Concluído", "Cancelado"]
+        && (!data.keys().contains('observacao') || (data.observacao is string && data.observacao.size() <= 1000))
+        && (!data.keys().contains('acceptedBy') || (data.acceptedBy is string && data.acceptedBy.size() <= 128));
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'userId', 'titulo', 'mensagem', 'lida', 'createdAt'])
+        && data.keys().size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.titulo is string && data.titulo.size() <= 200
+        && data.mensagem is string && data.mensagem.size() <= 1000
+        && data.lida is bool;
+    }
+
+    // -- Collection Match Rules --
+
+    // Colégios / Users
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming())
+                     && incoming().email == existing().email; // email cannot change as an immutable rule
+      allow delete: if isOwner(userId);
+    }
+
+    // Crianças
+    match /children/{childId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(incoming().userId) && isValidChild(incoming());
+      allow update: if isSignedIn() && isOwner(existing().userId) && isValidChild(incoming())
+                     && incoming().userId == existing().userId; // parent ownership immutable
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    // Atividades
+    match /activities/{activityId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidActivity(incoming());
+      allow update: if isSignedIn() && isValidActivity(incoming());
+      allow delete: if isSignedIn();
+    }
+
+    // Pedidos de Boleia (RideRequests)
+    match /rideRequests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isOwner(incoming().userId) && isValidRideRequest(incoming())
+                     && incoming().estado == "Pendente";
+                     
+      allow update: if isSignedIn() && isValidRideRequest(incoming()) && (
+        // Action 1: Owner updates their request (while still Pendente or Cancelado, but can only lock, cancel or edit comments)
+        (isOwner(existing().userId) && incoming().userId == existing().userId && (
+          // Pode cancelar
+          (incoming().estado == "Cancelado" && incoming().diff(existing()).affectedKeys().hasOnly(['estado'])) ||
+          // Ou editar detalhes enquanto pendente
+          (existing().estado == "Pendente" && incoming().diff(existing()).affectedKeys().hasOnly(['childId', 'activityId', 'data', 'hora', 'observacao']))
+        )) ||
+        
+        // Action 2: Anyone else accepts or frees the ride
+        (!isOwner(existing().userId) && (
+          // Aceitar boleia: Transição de Pendente para Aceite, gravando o acceptedBy correspondente ao próprio utilizador autenticado
+          (existing().estado == "Pendente" && incoming().estado == "Aceite" && incoming().acceptedBy == request.auth.uid && incoming().diff(existing()).affectedKeys().hasAll(['estado', 'acceptedBy']) && incoming().diff(existing()).affectedKeys().size() == 2) ||
+          // Cancelar aceitação/desistir (apenas se for quem aceitou): Liberar voltando para Pendente
+          (existing().estado == "Aceite" && existing().acceptedBy == request.auth.uid && incoming().estado == "Pendente" && incoming().acceptedBy == "" && incoming().diff(existing()).affectedKeys().hasAll(['estado', 'acceptedBy']) && incoming().diff(existing()).affectedKeys().size() == 2)
+        )) ||
+        
+        // Action 3: Owner completes the ride
+        (isOwner(existing().userId) && existing().estado == "Aceite" && incoming().estado == "Concluído" && incoming().diff(existing()).affectedKeys().hasOnly(['estado']))
+      );
+      
+      allow delete: if isSignedIn() && isOwner(existing().userId) && existing().estado == "Pendente";
+    }
+
+    // Notificações
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && isOwner(resource.data.userId);
+      allow create: if isSignedIn(); // Qualquer pai que desencadeie ação pode originar notificação para outro
+      allow update: if isSignedIn() && isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['lida']);
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+  }
+}

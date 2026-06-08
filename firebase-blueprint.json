@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Perfil do pai ou mãe utilizando a aplicação",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único do utilizador" },
+        "nome": { "type": "string", "description": "Nome completo do pai ou mãe" },
+        "email": { "type": "string", "description": "Endereço de email do utilizador" },
+        "telefone": { "type": "string", "description": "Número de telefone de contacto" },
+        "foto": { "type": "string", "description": "URL opcional da fotografia de perfil" }
+      },
+      "required": ["id", "nome", "email", "telefone"]
+    },
+    "Child": {
+      "title": "Child",
+      "description": "Criança registada por um utilizador",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único da criança" },
+        "userId": { "type": "string", "description": "ID do pai ou mãe responsável" },
+        "nome": { "type": "string", "description": "Nome completo ou próprio da criança" },
+        "dataNascimento": { "type": "string", "format": "date", "description": "Data de nascimento no formato YYYY-MM-DD" },
+        "foto": { "type": "string", "description": "URL opcional da fotografia da criança" }
+      },
+      "required": ["id", "userId", "nome", "dataNascimento"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Atividade extracurricular ou escolar da criança",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único da atividade" },
+        "childId": { "type": "string", "description": "ID da criança que realiza a atividade" },
+        "nome": { "type": "string", "description": "Nome da atividade (ex: Futebol, Natação, Explicações)" },
+        "local": { "type": "string", "description": "Localização da atividade" },
+        "diaSemana": { "type": "string", "enum": ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo"], "description": "Dia da semana em formato legível" },
+        "hora": { "type": "string", "description": "Hora da atividade no formato HH:MM" },
+        "observacoes": { "type": "string", "description": "Observações opcionais sobre a atividade" }
+      },
+      "required": ["id", "childId", "nome", "local", "diaSemana", "hora"]
+    },
+    "RideRequest": {
+      "title": "RideRequest",
+      "description": "Pedido de boleia para uma determinada atividade de uma criança",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único do pedido" },
+        "userId": { "type": "string", "description": "ID do pai ou mãe que criou o pedido" },
+        "childId": { "type": "string", "description": "ID da criança que necessita de boleia" },
+        "activityId": { "type": "string", "description": "ID da atividade para a qual é pedida a boleia" },
+        "data": { "type": "string", "format": "date", "description": "Data da boleia no formato YYYY-MM-DD" },
+        "hora": { "type": "string", "description": "Hora exata da boleia no formato HH:MM" },
+        "observacao": { "type": "string", "description": "Observações ou detalhes específicos da boleia" },
+        "estado": { "type": "string", "enum": ["Pendente", "Aceite", "Concluído", "Cancelado"], "description": "Estado de processamento da boleia" },
+        "acceptedBy": { "type": "string", "description": "ID do utilizador que aceitou a boleia (ou vazio se Pendente)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Data e hora de criação do pedido" }
+      },
+      "required": ["id", "userId", "childId", "activityId", "data", "hora", "estado", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Notificação enviada a um utilizador sobre boles e pedidos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "ID único da notificação" },
+        "userId": { "type": "string", "description": "ID do destinatário da notificação" },
+        "titulo": { "type": "string", "description": "Título da notificação" },
+        "mensagem": { "type": "string", "description": "Corpo da mensagem ou descrição" },
+        "lida": { "type": "boolean", "description": "Estado de leitura da notificação" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Data e hora em que a notificação foi enviada" }
+      },
+      "required": ["id", "userId", "titulo", "mensagem", "lida", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Coleção com os perfis de utilizador dos pais"
+    },
+    "/children/{childId}": {
+      "schema": "Child",
+      "description": "Coleção de crianças pertencentes a cada utilizador"
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Coleção de atividades extracurriculares associadas às crianças"
+    },
+    "/rideRequests/{requestId}": {
+      "schema": "RideRequest",
+      "description": "Coleção de pedidos de boleia realizados pelos pais"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Coleção contendo as notificações geradas pelo sistema para os utilizadores"
+    }
+  }
+}
