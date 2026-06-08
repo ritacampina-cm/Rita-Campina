@@ -1,9 +1,9 @@
 {
-  "apiKey": "",
-  "authDomain": "",
-  "projectId": "",
-  "storageBucket": "",
-  "messagingSenderId": "",
-  "appId": "",
-  "firestoreDatabaseId": ""
+  "apiKey": "AIzaSyB7xxZNnf1dEw8nhnyaz-FtZfs-2f3UtLM",
+  "authDomain": "rcampina-43a8c.firebaseapp.com",
+  "projectId": "rcampina-43a8c",
+  "storageBucket": "rcampina-43a8c.firebasestorage.app",
+  "messagingSenderId": "668536442360",
+  "appId": "1:668536442360:web:b482ecfbb35dd0fa8f1a0d",
+  "firestoreDatabaseId": "(default)"
 }
